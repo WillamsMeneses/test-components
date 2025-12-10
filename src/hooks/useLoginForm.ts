@@ -21,13 +21,20 @@ export const useLoginForm = ({
   onError
 }: UseLoginFormProps = {}) => {
   const [isLoading, setIsLoading] = useState(false);
-
   const validationSchema = Yup.object({
     email: Yup.string()
       .email('Correo electrónico inválido')
+      .matches(
+        /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+        'Correo electrónico inválido'
+      )
       .required('El correo electrónico es requerido'),
     password: Yup.string()
-      .min(6, 'La contraseña debe tener al menos 6 caracteres')
+      .min(8, 'La contraseña debe tener al menos 8 caracteres')
+      .matches(/[a-z]/, 'Debe contener al menos una minúscula')
+      .matches(/[A-Z]/, 'Debe contener al menos una mayúscula')
+      .matches(/[0-9]/, 'Debe contener al menos un número')
+      .matches(/[!@#$%^&*(),.?":{}|<>]/, 'Debe contener al menos un carácter especial')
       .required('La contraseña es requerida'),
     rememberMe: Yup.boolean()
   });
@@ -44,10 +51,10 @@ export const useLoginForm = ({
       try {
         // Simular llamada a API
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         // Aquí iría la llamada real a tu API
         // const response = await authService.login(values);
-        
+
         if (onSuccess) {
           onSuccess(values);
         }

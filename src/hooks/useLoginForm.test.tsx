@@ -1,4 +1,3 @@
-// src/hooks/useLoginForm.test.tsx - VERSIÓN SIMPLIFICADA
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useLoginForm } from './useLoginForm';
@@ -12,9 +11,9 @@ describe('useLoginForm Hook - Critical Logic Tests', () => {
   describe('Form Initial State', () => {
     it('should initialize with empty form values', () => {
       // GIVEN: No initial props
+      
       // WHEN: Hook initializes
       const { result } = renderHook(() => useLoginForm());
-      console.log("mostrar result: ", result);
       
       // THEN: Should have empty values
       expect(result.current.formik.values.email).toBe('');
@@ -43,7 +42,7 @@ describe('useLoginForm Hook - Critical Logic Tests', () => {
       const mockOnSuccess = vi.fn();
       const testValues = {
         email: 'user@example.com',
-        password: 'password123',
+        password: 'Password123!',
         rememberMe: true,
       };
       
@@ -72,14 +71,12 @@ describe('useLoginForm Hook - Critical Logic Tests', () => {
       
       await act(async () => {
         await result.current.formik.setFieldValue('email', 'test@example.com');
-        await result.current.formik.setFieldValue('password', 'password123');
+        await result.current.formik.setFieldValue('password', 'Password123!');
       });
       
       // WHEN: Submitting
       await act(async () => {
         const submitPromise = result.current.formik.submitForm();
-        // Verificar que isLoading es true DURANTE la submission
-        // (puede ser complicado capturar este estado exacto)
         await submitPromise;
       });
       
@@ -102,7 +99,7 @@ describe('useLoginForm Hook - Critical Logic Tests', () => {
       
       await act(async () => {
         await result.current.formik.setFieldValue('email', 'test@example.com');
-        await result.current.formik.setFieldValue('password', 'password123');
+        await result.current.formik.setFieldValue('password', 'Password123!');
       });
       
       // WHEN: Submitting (will fail)
@@ -115,17 +112,13 @@ describe('useLoginForm Hook - Critical Logic Tests', () => {
     });
   });
 
-  describe('Form Validation - Simplified Tests', () => {
+  describe('Form Validation', () => {
     it('should have validation schema defined', () => {
       // GIVEN: Hook initialized
       const { result } = renderHook(() => useLoginForm());
       
       // THEN: Should have Yup validation schema
       expect(result.current.validationSchema).toBeDefined();
-      
-      // Podemos verificar que las reglas existen
-      const schema = result.current.validationSchema;
-      expect(schema).toHaveProperty('describe');
     });
 
     it('should validate required fields', async () => {
@@ -138,6 +131,7 @@ describe('useLoginForm Hook - Critical Logic Tests', () => {
       // THEN: Should have validation errors for required fields
       expect(errors.email).toBeDefined();
       expect(errors.password).toBeDefined();
+      expect(errors.password).toBe('La contraseña es requerida'); // required es primero
     });
 
     it('should pass validation with proper data', async () => {
@@ -146,7 +140,7 @@ describe('useLoginForm Hook - Critical Logic Tests', () => {
       
       await act(async () => {
         await result.current.formik.setFieldValue('email', 'valid@example.com');
-        await result.current.formik.setFieldValue('password', 'password123');
+        await result.current.formik.setFieldValue('password', 'Password123!');
       });
       
       // WHEN: Validating
@@ -155,6 +149,274 @@ describe('useLoginForm Hook - Critical Logic Tests', () => {
       // THEN: Should have no errors
       expect(errors.email).toBeUndefined();
       expect(errors.password).toBeUndefined();
+    });
+
+    describe('Email Validation', () => {
+      it('should reject invalid email formats', async () => {
+        // GIVEN: Hook initialized
+        const { result } = renderHook(() => useLoginForm());
+        
+        const invalidEmails = [
+          'invalid@example',
+          'invalid@.com',
+          '@example.com',
+          'invalid@',
+          'invalid.com',
+          'invalid@example.',
+        ];
+        
+        for (const email of invalidEmails) {
+          await act(async () => {
+            await result.current.formik.setFieldValue('email', email);
+            await result.current.formik.setFieldValue('password', 'Password123!');
+          });
+          
+          // WHEN: Validating
+          const errors = await result.current.formik.validateForm();
+          
+          // THEN: Should have email error
+          expect(errors.email).toBeDefined();
+        }
+      });
+
+      it('should accept valid email formats', async () => {
+        // GIVEN: Hook initialized
+        const { result } = renderHook(() => useLoginForm());
+        
+        const validEmails = [
+          'user@example.com',
+          'user.name@domain.co.uk',
+          'user+tag@example.org',
+          'USER@DOMAIN.COM',
+          'user123@sub.domain.com',
+        ];
+        
+        for (const email of validEmails) {
+          await act(async () => {
+            await result.current.formik.setFieldValue('email', email);
+            await result.current.formik.setFieldValue('password', 'Password123!');
+          });
+          
+          // WHEN: Validating
+          const errors = await result.current.formik.validateForm();
+          
+          // THEN: Should have no email error
+          expect(errors.email).toBeUndefined();
+        }
+      });
+    });
+
+    describe('Password Validation - Strong Password Rules', () => {
+      describe('Minimum Length', () => {
+        it('should reject passwords shorter than 8 characters', async () => {
+          // GIVEN: Hook with short passwords (pero no vacías)
+          const { result } = renderHook(() => useLoginForm());
+          
+          // Usar passwords NO VACÍAS pero cortas
+          const shortPasswords = ['1', '12', '123', '1234', '12345', '123456', '1234567'];
+          
+          for (const password of shortPasswords) {
+            await act(async () => {
+              await result.current.formik.setFieldValue('email', 'test@example.com');
+              await result.current.formik.setFieldValue('password', password);
+            });
+            
+            // WHEN: Validating
+            const errors = await result.current.formik.validateForm();
+            
+            // THEN: Should have password error about length
+            expect(errors.password).toBeDefined();
+            // Nota: Para passwords muy cortas, puede mostrar error de minúscula primero
+            console.log(`Password "${password}": ${errors.password}`);
+            // Solo verifica que haya error, no el mensaje específico
+          }
+        });
+
+        it('should accept passwords with at least 8 characters (if they meet all other rules)', async () => {
+          // GIVEN: Hook with valid length passwords that meet all rules
+          const { result } = renderHook(() => useLoginForm());
+          
+          const validPasswords = [
+            'Password123!',    // 12 chars, cumple todas las reglas
+            'Secure@2024',     // 11 chars
+            'MyP@ssw0rd',      // 9 chars
+            'Test#2024',       // 8 chars mínimo
+          ];
+          
+          for (const password of validPasswords) {
+            await act(async () => {
+              await result.current.formik.setFieldValue('email', 'test@example.com');
+              await result.current.formik.setFieldValue('password', password);
+            });
+            
+            // WHEN: Validating
+            const errors = await result.current.formik.validateForm();
+            
+            // THEN: Should have no password error
+            expect(errors.password).toBeUndefined();
+          }
+        });
+      });
+
+      describe('Character Requirements', () => {
+        it('should require at least one lowercase letter', async () => {
+          // GIVEN: Hook with password missing lowercase
+          const { result } = renderHook(() => useLoginForm());
+          
+          // Passwords con 8+ chars pero sin minúsculas
+          const passwordsWithoutLowercase = [
+            'PASSWORD123!',  // 12 chars: solo mayúsculas, números, especial
+            'TEST@2024',     // 9 chars
+            'ABCDEFG1!',     // 8 chars
+          ];
+          
+          for (const password of passwordsWithoutLowercase) {
+            await act(async () => {
+              await result.current.formik.setFieldValue('email', 'test@example.com');
+              await result.current.formik.setFieldValue('password', password);
+            });
+            
+            // WHEN: Validating
+            const errors = await result.current.formik.validateForm();
+            
+            // THEN: Should have error about lowercase
+            expect(errors.password).toBeDefined();
+            expect(errors.password).toContain('minúscula');
+          }
+        });
+
+        it('should require at least one uppercase letter', async () => {
+          // GIVEN: Hook with password missing uppercase
+          const { result } = renderHook(() => useLoginForm());
+          
+          // Passwords con 8+ chars, con minúsculas, pero sin mayúsculas
+          const passwordsWithoutUppercase = [
+            'password123!',  // 12 chars: minúsculas, números, especial
+            'test@2024',     // 9 chars
+            'abcdefg1!',     // 8 chars
+          ];
+          
+          for (const password of passwordsWithoutUppercase) {
+            await act(async () => {
+              await result.current.formik.setFieldValue('email', 'test@example.com');
+              await result.current.formik.setFieldValue('password', password);
+            });
+            
+            // WHEN: Validating
+            const errors = await result.current.formik.validateForm();
+            
+            // THEN: Should have error about uppercase
+            expect(errors.password).toBeDefined();
+            expect(errors.password).toContain('mayúscula');
+          }
+        });
+
+        it('should require at least one number', async () => {
+          // GIVEN: Hook with password missing numbers
+          const { result } = renderHook(() => useLoginForm());
+          
+          // Passwords con 8+ chars, mayúsculas, minúsculas, especiales, pero sin números
+          const passwordsWithoutNumbers = [
+            'Password!',      // 9 chars: mayúscula, minúscula, especial
+            'MyPassword@',    // 11 chars
+            'TestPass#',      // 9 chars
+          ];
+          
+          for (const password of passwordsWithoutNumbers) {
+            await act(async () => {
+              await result.current.formik.setFieldValue('email', 'test@example.com');
+              await result.current.formik.setFieldValue('password', password);
+            });
+            
+            // WHEN: Validating
+            const errors = await result.current.formik.validateForm();
+            
+            // THEN: Should have error about number
+            expect(errors.password).toBeDefined();
+            expect(errors.password).toContain('número');
+          }
+        });
+
+        it('should require at least one special character', async () => {
+          // GIVEN: Hook with password missing special characters
+          const { result } = renderHook(() => useLoginForm());
+          
+          // Passwords con 8+ chars, mayúsculas, minúsculas, números, pero sin especiales
+          const passwordsWithoutSpecial = [
+            'Password123',    // 11 chars
+            'MyPassword2024', // 14 chars
+            'Test1234',       // 8 chars
+          ];
+          
+          for (const password of passwordsWithoutSpecial) {
+            await act(async () => {
+              await result.current.formik.setFieldValue('email', 'test@example.com');
+              await result.current.formik.setFieldValue('password', password);
+            });
+            
+            // WHEN: Validating
+            const errors = await result.current.formik.validateForm();
+            
+            // THEN: Should have error about special character
+            expect(errors.password).toBeDefined();
+            expect(errors.password).toContain('carácter especial');
+          }
+        });
+      });
+
+      it('should accept passwords that meet all requirements', async () => {
+        // GIVEN: Hook with strong passwords
+        const { result } = renderHook(() => useLoginForm());
+        
+        const strongPasswords = [
+          'Password123!',
+          'Secure@2024',
+          'MyP@ssw0rd2024',
+          'Admin!1234',
+          'S3cur3P@ss',
+          'Test#2024Pass',
+        ];
+        
+        for (const password of strongPasswords) {
+          await act(async () => {
+            await result.current.formik.setFieldValue('email', 'test@example.com');
+            await result.current.formik.setFieldValue('password', password);
+          });
+          
+          // WHEN: Validating
+          const errors = await result.current.formik.validateForm();
+          
+          // THEN: Should have no password error
+          expect(errors.password).toBeUndefined();
+        }
+      });
+
+      it('should show specific error message for the first failing rule', async () => {
+        // GIVEN: Hook with various invalid passwords
+        const { result } = renderHook(() => useLoginForm());
+        
+        const testCases = [
+          { password: 'short', expectedError: 'al menos 8 caracteres' }, // muy corta
+          { password: 'LONG1234', expectedError: 'minúscula' }, // no minúscula (8+ chars)
+          { password: 'lower123!', expectedError: 'mayúscula' }, // no mayúscula
+          { password: 'Password!', expectedError: 'número' }, // no número
+          { password: 'Password123', expectedError: 'carácter especial' }, // no especial
+        ];
+        
+        for (const { password, expectedError } of testCases) {
+          await act(async () => {
+            await result.current.formik.setFieldValue('email', 'test@example.com');
+            await result.current.formik.setFieldValue('password', password);
+          });
+          
+          // WHEN: Validating
+          const errors = await result.current.formik.validateForm();
+          
+          // THEN: Should contain expected error message
+          expect(errors.password).toBeDefined();
+          expect(errors.password).toContain(expectedError);
+        }
+      });
     });
   });
 
@@ -166,14 +428,37 @@ describe('useLoginForm Hook - Critical Logic Tests', () => {
       // WHEN: Updating all fields
       await act(async () => {
         await result.current.formik.setFieldValue('email', 'new@example.com');
-        await result.current.formik.setFieldValue('password', 'newpass123');
+        await result.current.formik.setFieldValue('password', 'NewPass123!');
         await result.current.formik.setFieldValue('rememberMe', true);
       });
       
       // THEN: Values should be updated
       expect(result.current.formik.values.email).toBe('new@example.com');
-      expect(result.current.formik.values.password).toBe('newpass123');
+      expect(result.current.formik.values.password).toBe('NewPass123!');
       expect(result.current.formik.values.rememberMe).toBe(true);
+    });
+
+    it('should clear form errors on value change', async () => {
+      // GIVEN: Hook with validation error
+      const { result } = renderHook(() => useLoginForm());
+      
+      // Crear un error de validación
+      await act(async () => {
+        await result.current.formik.setFieldValue('email', 'invalid');
+        await result.current.formik.validateForm();
+      });
+      
+      // Asegurarse de que hay error
+      expect(result.current.formik.errors.email).toBeDefined();
+      
+      // WHEN: Changing to valid value
+      await act(async () => {
+        await result.current.formik.setFieldValue('email', 'valid@example.com');
+      });
+      
+      // THEN: Error should be cleared after validation
+      const errors = await result.current.formik.validateForm();
+      expect(errors.email).toBeUndefined();
     });
   });
 });
